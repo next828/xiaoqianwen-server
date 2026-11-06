@@ -1,0 +1,9 @@
+ai-web/users.json
+ai-web/posts.json
+ai-web/keys.json
+ai-web/codes.json
+社区/uploads/*
+__pycache__/
+*.pyc
+# 模型文件不上传
+*.gguf

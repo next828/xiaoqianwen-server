@@ -1,0 +1,873 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Cache-Control" content="no-store">
+<title>小鲸鱼 · 小千问 · 本地 AI</title>
+<link rel="icon" href="qwen.svg">
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;height:100vh;display:flex;flex-direction:column;background:#0e1116;color:#e6edf3;
+       font-family:-apple-system,"Segoe UI","Microsoft YaHei UI",sans-serif}
+  header{padding:10px 20px;border-bottom:1px solid #1f2733;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  header b{font-size:15px;font-weight:600}
+  #stat{font-size:12px;color:#6b7a8d}
+  .sp{flex:1}
+  select{background:#131a24;color:#cfe0f0;border:1px solid #24303f;border-radius:8px;
+         padding:6px 8px;font-size:12px;outline:none}
+  header button{background:#1a2331;border:1px solid #24303f;color:#9fb0c3;padding:6px 12px;
+                border-radius:8px;font-size:12px;cursor:pointer}
+  #log{flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:14px}
+  .msg{max-width:80%;padding:12px 16px;border-radius:14px;line-height:1.65;word-break:break-word}
+  .me{align-self:flex-end;background:#1d4ed8;color:#fff;border-bottom-right-radius:4px;white-space:pre-wrap}
+  .ai{align-self:flex-start;background:#1a2331;border:1px solid #232f40;border-bottom-left-radius:4px;width:80%}
+  .ans{white-space:pre-wrap}
+  .sys{align-self:center;color:#6b7a8d;font-size:12px}
+  .tool{align-self:flex-start;font-size:12px;color:#c9a227;background:#1e1a10;
+        border:1px solid #3a2f12;border-radius:8px;padding:6px 10px;max-width:80%}
+  details{margin-bottom:8px;border-left:2px solid #2d6ae0;padding-left:10px}
+  summary{cursor:pointer;color:#7aa2e0;font-size:12px;user-select:none}
+  .trace{font-size:12px;color:#79a6e8;padding:3px 0;border-bottom:1px dashed #1c2836;white-space:pre-wrap}
+  .trace.ok{color:#5fbf85}
+  .trace.err{color:#e08a8a}
+  .think{color:#8b98a8;font-size:12px;white-space:pre-wrap;max-height:200px;overflow:auto;margin-top:6px}
+  footer{padding:12px 20px;border-top:1px solid #1f2733;display:flex;gap:10px}
+  textarea{flex:1;resize:none;height:52px;padding:14px;border-radius:12px;border:1px solid #24303f;
+           background:#131a24;color:#e6edf3;font-size:14px;font-family:inherit;outline:none}
+  textarea:focus{border-color:#2d6ae0}
+  #send{padding:0 22px;border-radius:12px;border:none;background:#2563eb;color:#fff;font-size:14px;cursor:pointer}
+  #send:disabled{background:#2a3444;cursor:not-allowed}
+</style>
+</head>
+<body>
+<header>
+  <b><img src="qwen.svg" alt="" style="height:22px;width:22px;vertical-align:-5px;margin-right:7px">小鲸鱼 · 小千问</b>
+  <span id="stat">连接中…</span>
+  <div class="sp"></div>
+  <select id="ctx" title="上下文长度（重启启动器生效）">
+    <option value="4096">4K 上下文</option>
+    <option value="8192">8K 上下文</option>
+    <option value="16384" selected>16K 上下文</option>
+    <option value="32768">32K 上下文</option>
+  </select>
+  <input id="mtok" type="number" value="2048" min="256" max="8192" step="256"
+         title="单次生成上限（token）"
+         style="width:82px;background:#131a24;color:#cfe0f0;border:1px solid #24303f;border-radius:8px;padding:6px 8px;font-size:12px">
+  <select id="rounds" title="工具决策轮数">
+    <option value="1">1 轮</option>
+    <option value="3" selected>3 轮</option>
+    <option value="5">5 轮</option>
+  </select>
+  <select id="think" title="思考程度">
+    <option value="auto">🅰 自动</option>
+    <option value="0">⚡ 不思考</option>
+    <option value="1" selected>🙂 轻度</option>
+    <option value="2">🤔 标准</option>
+    <option value="3">🧠 深度</option>
+  </select>
+  <button id="addmodel" title="添加本地模型" style="background:#1a2331;border:1px solid #24303f;color:#9fb0c3;border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer">➕</button>
+  <select id="model" title="模型选择">
+    <option value="auto" selected>自动</option>
+    <option value="small">小模型 2B（快）</option>
+    <option value="big">大模型 9B（强）</option>
+    <option value="vl">看图 7B</option>
+  </select>
+  <select id="level" title="操作权限">
+    <option value="readonly">🔒 仅可查看</option>
+    <option value="workspace" selected>📁 工作区内修改</option>
+    <option value="full">⚡ 完全权限</option>
+  </select>
+  <button id="locbtn" title="设置我所在的城市">📍 位置</button>
+  <button id="wsbtn" title="点击指定工作区">📂 工作区</button>
+  <button id="clear">清空对话</button>
+</header>
+<div id="log"><div class="sys">模型跑在你的显卡上，数据不出本机。</div></div>
+<div id="preview" style="display:none;padding:8px 20px;border-top:1px solid #1f2733;background:#0f141b">
+  <span style="font-size:12px;color:#8b98a8">已附加图片</span>
+  <img id="thumb" style="height:56px;border-radius:6px;margin-left:10px;vertical-align:middle;border:1px solid #24303f">
+  <button id="rmimg" style="margin-left:10px;background:#2a1a1a;border:1px solid #5a2b2b;color:#e08a8a;border-radius:6px;padding:3px 8px;font-size:12px;cursor:pointer">移除</button>
+</div>
+<footer>
+  <button id="attach" title="上传图片" style="background:#1a2331;border:1px solid #24303f;color:#9fb0c3;border-radius:10px;padding:0 12px;font-size:16px;cursor:pointer">📎</button>
+  <button id="shot" title="截取当前屏幕" style="background:#1a2331;border:1px solid #24303f;color:#9fb0c3;border-radius:10px;padding:0 12px;font-size:16px;cursor:pointer">🖥</button>
+  <textarea id="q" placeholder="说点什么…（Enter 发送，Shift+Enter 换行）"></textarea>
+  <button id="send">发送</button>
+</footer>
+<script>
+const log = document.getElementById('log');
+const q = document.getElementById('q');
+const btn = document.getElementById('send');
+const stat = document.getElementById('stat');
+const levelSel = document.getElementById('level');
+const modelSel = document.getElementById('model');
+const thinkSel = document.getElementById('think');
+const THKEY = 'xiaojingyu_think_v1';
+let THINK = 1;
+let GEO = null;
+fetch('http://127.0.0.1:8081/geo', {cache:'no-store'})
+  .then(r => r.json()).then(j => { if (j && j.geo && j.geo.city) GEO = j.geo; })
+  .catch(() => {});
+let THINK_RAW = '1';
+try { const tv = localStorage.getItem(THKEY); if (tv !== null) { THINK_RAW = tv; thinkSel.value = tv; THINK = tv === 'auto' ? 1 : (parseInt(tv) || 0); } } catch (e) {}
+function resolveThink(text, hasImg){
+  if (THINK_RAW !== 'auto') return THINK;
+  if (hasImg) return 1;
+  const hard = (text || '').length > 60 || /代码|函数|报错|为什么|解释|分析|算法|调试|推理|证明|设计|对比/i.test(text || '');
+  return hard ? 3 : 0;
+}
+thinkSel.onchange = () => {
+  THINK_RAW = thinkSel.value;
+  THINK = THINK_RAW === 'auto' ? 1 : (parseInt(THINK_RAW) || 0);
+  try { localStorage.setItem(THKEY, THINK_RAW); } catch (e) {}
+  addSys('思考程度：' + thinkSel.options[thinkSel.selectedIndex].text);
+  saveStateSoon();
+};
+const MKEY = 'xiaojingyu_model_v1';
+try { const mv = localStorage.getItem(MKEY); if (mv) modelSel.value = mv; } catch (e) {}
+function syncThinkOptions(){
+  const isSmall = modelSel.value === 'small';
+  const opt0 = thinkSel.querySelector('option[value="0"]');
+  if (opt0) { opt0.disabled = isSmall; opt0.hidden = isSmall; }
+  if (isSmall && thinkSel.value === '0') {
+    thinkSel.value = '1'; THINK_RAW = '1'; THINK = 1;
+    try { localStorage.setItem(THKEY, '1'); } catch (e) {}
+    addSys('小模型没有「不思考」档，已切到轻度');
+  }
+}
+modelSel.onchange = () => {
+  try { localStorage.setItem(MKEY, modelSel.value); } catch (e) {}
+  addSys('模型：' + modelSel.options[modelSel.selectedIndex].text);
+  syncThinkOptions();
+  // 选了模型就后台预加载，等真正提问时已经热好了
+  const chose = modelSel.value;
+  if (chose && chose !== 'auto' && chose !== 'small') {
+    addSys('正在后台加载「' + modelSel.options[modelSel.selectedIndex].text + '」…');
+    fetch(TOOLS_API + '/ensure?kind=' + encodeURIComponent(chose))
+      .then(() => addSys('「' + modelSel.options[modelSel.selectedIndex].text + '」已就绪'))
+      .catch(() => {});
+  }
+};
+const SMALL_URL = 'http://127.0.0.1:8082';
+const TOOLS_API = 'http://127.0.0.1:8081';
+
+async function refreshModels(){
+  try {
+    const r = await (await fetch(TOOLS_API + '/models', {cache:'no-store'})).json();
+    const cur = modelSel.value;
+    let html = '<option value="auto">自动</option>';
+    (r.models || []).forEach(m => { html += '<option value="' + m.id + '">' + (m.title || m.id) + '</option>'; });
+    modelSel.innerHTML = html;
+    modelSel.value = Array.from(modelSel.options).some(o => o.value === cur) ? cur : 'auto';
+  } catch (e) {}
+}
+refreshModels();
+syncThinkOptions();
+
+document.getElementById('addmodel').onclick = async () => {
+  let list = [];
+  try {
+    const r = await (await fetch(TOOLS_API + '/models', {cache:'no-store'})).json();
+    list = r.gguf || [];
+  } catch (e) {}
+  const hint = list.length
+    ? '已扫描到这些模型（输入编号即可）：\n' + list.map((g, i) => (i + 1) + '. ' + g.name + '  ' + g.mb + ' MB').join('\n') + '\n\n或直接输入 .gguf 的完整路径：'
+    : '输入 .gguf 文件的完整路径：';
+  const ans = prompt(hint, '');
+  if (!ans) return;
+  let path = ans.trim().replace(/^"|"$/g, '');
+  const idx = parseInt(path);
+  if (!isNaN(idx) && list[idx - 1]) path = list[idx - 1].path;
+  const name = prompt('给这个模型起个名字（显示在列表里）：', path.split('/').pop().replace('.gguf', '').slice(0, 20));
+  if (name === null) return;
+  try {
+    const r = await (await fetch(TOOLS_API + '/models', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ name: name || 'my-model', path: path, ctx: 8192 })
+    })).json();
+    if (r.ok) { addSys('已添加模型：' + (name || r.id)); await refreshModels(); }
+    else addSys('添加失败：' + (r.error || '未知'));
+  } catch (e) { addSys('添加失败：' + e.message); }
+};
+async function pickModel(hasImg, text){
+  const m = modelSel.value;
+  if (m !== 'auto') return m;
+  if (hasImg) return 'vl';
+  if (/搜索|搜一下|搜下|查一下|查查|联网|最新消息|新闻|官网|多少钱|价格|汇率|股价/i.test(text)) return 'big';
+  const hard = text.length > 40 || /代码|函数|报错|错误|python|脚本|为什么|解释|分析|调试|算法|重构|优化/i.test(text);
+  return hard ? 'big' : 'small';
+}
+async function ensureModel(kind){
+  if (kind === 'small'){
+    try { const r = await fetch(SMALL_URL + '/health', {cache:'no-store'}); if (r.ok) return { base: SMALL_URL, kind: 'small' }; } catch (e) {}
+    /* 自动模式下 2B 没开就直接用 9B，不再为它多占 1.8GB 内存
+       只有你手动选了「小模型 2B」才会真的把它拉起来 */
+    if (modelSel.value !== 'small') {
+      kind = 'big';
+    } else {
+      try { await fetch(TOOLS_API + '/ensure?kind=small'); } catch (e) {}
+      try { const r2 = await fetch(SMALL_URL + '/health', {cache:'no-store'}); if (r2.ok) return { base: SMALL_URL, kind: 'small' }; } catch (e) {}
+      kind = 'big';
+    }
+  }
+  try {
+    await fetch('http://127.0.0.1:8081/ensure?kind=' + kind);
+  } catch (e) { addSys('切换模型失败：' + e.message); }
+  return { base: '', kind: kind };
+}
+const ctxSel = document.getElementById('ctx');
+const mtokEl = document.getElementById('mtok');
+const roundsSel = document.getElementById('rounds');
+const CKEY = 'xiaojingyu_ctx_v1', TKEY = 'xiaojingyu_mtok_v1', RKEY = 'xiaojingyu_rounds_v1';
+let MAXTOK = 2048, MAXROUNDS = 3;
+const KEY = 'xiaojingyu_local_chat_v1';
+const SKEY = 'xiaojingyu_summary_v1';
+const LKEY = 'xiaojingyu_level_v1';
+const WKEY = 'xiaojingyu_workspace_v1';
+let WS = '';
+const TOOL_URL = 'http://127.0.0.1:8081/tool';
+
+let MEM = '', SUMMARY = '', history = [];
+
+try { const lv = localStorage.getItem(LKEY); if (lv) levelSel.value = lv; } catch (e) {}
+try { WS = localStorage.getItem(WKEY) || ''; } catch (e) {}
+const wsbtn = document.getElementById('wsbtn');
+function paintWs(){
+  const name = WS ? WS.split('\\').pop() : '默认';
+  wsbtn.textContent = '📂 ' + name;
+  wsbtn.title = '当前工作区：' + (WS || '（默认 workspace 目录）') + '\n点击修改';
+}
+paintWs();
+document.getElementById('locbtn').onclick = async () => {
+  const cur = GEO ? (GEO.province + GEO.city) : '（自动定位）';
+  const v = prompt('你所在的城市（例如：韶关）\n当前：' + cur, GEO && !GEO.manual ? (GEO.city || '') : (GEO ? GEO.city : ''));
+  if (v === null) return;
+  const city = v.trim();
+  if (!city) return;
+  try {
+    await fetch('http://127.0.0.1:8081/setloc?city=' + encodeURIComponent(city));
+    GEO = { country: '中国', province: '', city: city, manual: true };
+    addSys('位置已设为：' + city);
+  } catch (e) { addSys('设置失败：' + e.message); }
+};
+wsbtn.onclick = () => {
+  const v = prompt('输入工作区路径（留空=恢复默认）\n当前：' + (WS || '默认'), WS || '');
+  if (v === null) return;
+  WS = v.trim().replace(/^"|"$/g, '');
+  try { localStorage.setItem(WKEY, WS); } catch (e) {}
+  paintWs();
+  addSys(WS ? '工作区已设为：' + WS : '工作区已恢复默认');
+};
+try {
+  const c = localStorage.getItem(CKEY); if (c) ctxSel.value = c;
+  const m = localStorage.getItem(TKEY); if (m) { mtokEl.value = m; MAXTOK = parseInt(m) || 2048; }
+  const r = localStorage.getItem(RKEY); if (r) { roundsSel.value = r; MAXROUNDS = parseInt(r) || 3; }
+} catch (e) {}
+
+ctxSel.onchange = async () => {
+  const v = ctxSel.value;
+  try { localStorage.setItem(CKEY, v); } catch (e) {}
+  try {
+    await fetch('http://127.0.0.1:8081/config', { method:'POST',
+      headers:{'Content-Type':'application/json'}, body: JSON.stringify({ ctx: parseInt(v) }) });
+    addSys('上下文改为 ' + (v/1024) + 'K，重启启动器后生效');
+  } catch (e) { addSys('保存失败：' + e.message); }
+};
+mtokEl.onchange = () => {
+  MAXTOK = Math.max(256, Math.min(8192, parseInt(mtokEl.value) || 2048));
+  mtokEl.value = MAXTOK;
+  try { localStorage.setItem(TKEY, MAXTOK); } catch (e) {}
+  addSys('单次生成上限：' + MAXTOK + ' token');
+};
+roundsSel.onchange = () => {
+  MAXROUNDS = parseInt(roundsSel.value) || 3;
+  try { localStorage.setItem(RKEY, MAXROUNDS); } catch (e) {}
+  addSys('工具决策轮数：' + MAXROUNDS);
+};
+
+levelSel.onchange = () => { try { localStorage.setItem(LKEY, levelSel.value); } catch (e) {} addSys('权限已切换为：' + levelSel.options[levelSel.selectedIndex].text); };
+
+fetch('memory.txt?t=' + Date.now(), { cache: 'no-store' })
+  .then(r => r.text()).then(t => { MEM = t.trim(); })
+  .catch(() => {});
+try { SUMMARY = ''; } catch (e) {}
+/* 对话记录不存浏览器（C 盘），只存 E 盘的 state.json */
+try { localStorage.removeItem(SKEY); localStorage.removeItem(KEY); } catch (e) {}
+
+try {
+  /* 历史改由 E 盘 state.json 恢复，这里不再读浏览器 */
+} catch (e) {}
+
+(async () => {
+  try {
+    const r = await fetch('http://127.0.0.1:8081/state', { cache: 'no-store' });
+    const s = await r.json();
+    if (!s || !s.history) return;
+    if (s.history.length) {
+      log.innerHTML = '<div class="sys">模型跑在你的显卡上，数据不出本机。</div>';
+      history = s.history;
+      history.forEach(m => bubble(m.role === 'user' ? 'me' : 'ai', m.content));
+    }
+    if (s.summary) SUMMARY = s.summary;
+    if (s.level) levelSel.value = s.level;
+    if (s.model) modelSel.value = s.model;
+    if (s.think !== undefined && s.think !== null) { THINK = parseInt(s.think) || 0; thinkSel.value = String(THINK); }
+    if (s.ctx) ctxSel.value = s.ctx;
+    if (s.mtok) { MAXTOK = parseInt(s.mtok) || 2048; mtokEl.value = MAXTOK; }
+    if (s.rounds) { MAXROUNDS = parseInt(s.rounds) || 3; roundsSel.value = MAXROUNDS; }
+    if (s.ws) { WS = s.ws; try { paintWs(); } catch (e) {} }
+    addSys('已从磁盘恢复：' + history.length + ' 条对话、思考档位 ' + THINK);
+  } catch (e) {}
+})();
+
+/* 页面打开时模型可能被空闲卸载了，先自动拉起 */
+(function warmup(){
+  fetch('http://127.0.0.1:8081/ensure?kind=big').catch(function(){});
+})();
+
+(function probe(n){
+  n = n || 0;
+  fetch('/v1/models', { cache: 'no-store' }).then(r => r.json()).then(d => {
+    const nm = (d.data && d.data[0] && d.data[0].id) || '本地模型';
+    stat.textContent = '已连接 · ' + nm.split('\\').pop();
+    stat.style.color = '#3ddc84';
+  }).catch(() => {
+    if (n < 40) { stat.textContent = '等待模型加载… ' + (n + 1) + 's'; setTimeout(() => probe(n + 1), 1000); }
+    else { stat.textContent = '未连接'; stat.style.color = '#e5534b'; }
+  });
+})();
+
+function addSys(t){ const e=document.createElement('div'); e.className='sys'; e.textContent=t; log.appendChild(e); log.scrollTop=log.scrollHeight; }
+function bubble(cls, text){
+  const el=document.createElement('div'); el.className='msg '+cls;
+  const b=document.createElement('div'); b.className='ans'; b.textContent=text||'';
+  el.appendChild(b); log.appendChild(el); log.scrollTop=log.scrollHeight; return el;
+}
+let curTrace = null;
+function trace(text, cls){
+  if (!curTrace) return;
+  const d = document.createElement('div');
+  d.className = 'trace' + (cls ? ' ' + cls : '');
+  d.textContent = text;
+  curTrace.appendChild(d);
+  curTrace.scrollTop = curTrace.scrollHeight;
+  log.scrollTop = log.scrollHeight;
+}
+function brief(o, name){
+  try {
+    if (!o) return '';
+    if (o.error) return '出错：' + String(o.error).slice(0, 80);
+    if (name === 'list_dir' && o.items) return '返回 ' + o.items.length + ' 项';
+    if (name === 'read_file') return '读取 ' + (o.content ? o.content.length : 0) + ' 字符';
+    if (name === 'write_file') return '写入 ' + (o.bytes || 0) + ' 字节 → ' + (o.path || '');
+    if (name === 'web_search' && o.results) return '搜到 ' + o.results.length + ' 条';
+    if (name === 'news' && o.items) return '拿到 ' + o.items.length + ' 条新闻';
+    if (name === 'fetch_url') return '抓到 ' + (o.text ? o.text.length : 0) + ' 字符';
+    if (name === 'run_python' || name === 'run_cmd') return '退出码 ' + o.exit + '，输出 ' + ((o.stdout || '').length) + ' 字符';
+    if (o.ok) return '成功' + (o.path ? ' → ' + o.path : '');
+    if (o.city) return o.city + ' ' + (o.weather || '') + ' ' + (o.temp || '');
+    if (o.summary) return String(o.summary).slice(0, 60);
+    if (o.text) return String(o.text).slice(0, 60);
+    return '完成';
+  } catch (e) { return ''; }
+}
+function toolLine(t){ const e=document.createElement('div'); e.className='tool'; e.textContent=t; log.appendChild(e); log.scrollTop=log.scrollHeight; }
+let stateTimer = null;
+function saveStateSoon(){
+  clearTimeout(stateTimer);
+  stateTimer = setTimeout(() => {
+    const snap = {
+      history: history.slice(-40), summary: SUMMARY,
+      level: levelSel.value, model: modelSel.value, think: THINK,
+      ctx: ctxSel.value, mtok: MAXTOK, rounds: MAXROUNDS, ws: WS,
+    };
+    fetch('http://127.0.0.1:8081/state', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(snap)
+    }).catch(() => {});
+  }, 700);
+}
+function persist(){
+  saveStateSoon();   // 只存 E 盘，不写浏览器
+}
+
+document.getElementById('clear').onclick = () => {
+  history=[]; SUMMARY='';
+  try { localStorage.removeItem(SKEY); } catch(e) {}
+  persist(); log.innerHTML='<div class="sys">对话已清空（记忆文件不受影响）</div>';
+};
+
+function toolDefs(level){
+  const t = [
+    {type:'function', function:{name:'web_search', description:'联网搜索最新信息',
+      parameters:{type:'object', properties:{query:{type:'string', description:'搜索关键词'}}, required:['query']}}},
+    {type:'function', function:{name:'read_file', description:'读取一个文本文件',
+      parameters:{type:'object', properties:{path:{type:'string'}}, required:['path']}}},
+    {type:'function', function:{name:'news', description:'抓科技新闻（solidot 或 ithome）',
+      parameters:{type:'object', properties:{source:{type:'string', enum:['solidot','ithome']}}}}},
+    {type:'function', function:{name:'wiki', description:'查百科摘要',
+      parameters:{type:'object', properties:{term:{type:'string'}}, required:['term']}}},
+    {type:'function', function:{name:'fx', description:'查汇率',
+      parameters:{type:'object', properties:{base:{type:'string'}, to:{type:'string'}}}}},
+    {type:'function', function:{name:'ip_info', description:'查 IP 归属地',
+      parameters:{type:'object', properties:{ip:{type:'string'}}, required:['ip']}}},
+    {type:'function', function:{name:'disk', description:'查看各磁盘剩余空间',
+      parameters:{type:'object', properties:{}}}},
+    {type:'function', function:{name:'find_file', description:'按文件名搜索文件',
+      parameters:{type:'object', properties:{pattern:{type:'string', description:'如 *.py'}, root:{type:'string'}}, required:['pattern']}}},
+    {type:'function', function:{name:'ps_list', description:'列出占用内存最高的进程',
+      parameters:{type:'object', properties:{}}}},
+    {type:'function', function:{name:'calendar', description:'读写日程备忘',
+      parameters:{type:'object', properties:{action:{type:'string', enum:['add','list']}, text:{type:'string'}, when:{type:'string'}}, required:['action']}}},
+    {type:'function', function:{name:'weather', description:'查某个城市的天气',
+      parameters:{type:'object', properties:{city:{type:'string'}}, required:['city']}}},
+    {type:'function', function:{name:'clipboard', description:'读或写系统剪贴板',
+      parameters:{type:'object', properties:{action:{type:'string', enum:['get','set']}, text:{type:'string'}}, required:['action']}}},
+    {type:'function', function:{name:'translate', description:'把文本翻译成另一种语言',
+      parameters:{type:'object', properties:{text:{type:'string'}, to:{type:'string', description:'目标语言，如 zh-CN / en'}}, required:['text']}}},
+    {type:'function', function:{name:'fetch_url', description:'抓取一个网页的正文内容（比搜索更详细）',
+      parameters:{type:'object', properties:{url:{type:'string'}}, required:['url']}}},
+    {type:'function', function:{name:'list_dir', description:'列出目录内容',
+      parameters:{type:'object', properties:{path:{type:'string'}}, required:['path']}}},
+  ];
+  if (level !== 'readonly') {
+    t.push({type:'function', function:{name:'write_file', description:'写入文本文件（工作区内或完全权限）',
+      parameters:{type:'object', properties:{path:{type:'string'}, content:{type:'string'}}, required:['path','content']}}});
+  }
+  if (level !== 'readonly') {
+    t.push({type:'function', function:{name:'volume', description:'调系统音量或静音',
+      parameters:{type:'object', properties:{value:{type:'number', description:'0-100'}, mute:{type:'boolean'}}}}});
+    t.push({type:'function', function:{name:'rename_batch', description:'批量重命名文件',
+      parameters:{type:'object', properties:{folder:{type:'string'}, old:{type:'string'}, new:{type:'string'}}, required:['old','new']}}});
+    t.push({type:'function', function:{name:'zip', description:'压缩文件或文件夹',
+      parameters:{type:'object', properties:{path:{type:'string'}, out:{type:'string'}}, required:['path']}}});
+    t.push({type:'function', function:{name:'unzip', description:'解压 zip',
+      parameters:{type:'object', properties:{path:{type:'string'}, out:{type:'string'}}, required:['path']}}});
+    t.push({type:'function', function:{name:'play_music', description:'用默认播放器打开音频/视频',
+      parameters:{type:'object', properties:{path:{type:'string'}}, required:['path']}}});
+    t.push({type:'function', function:{name:'notify', description:'弹一个系统提示框（可延迟，当提醒用）',
+      parameters:{type:'object', properties:{title:{type:'string'}, text:{type:'string'}, delay:{type:'number', description:'几秒后弹出'}}, required:['text']}}});
+  }
+  if (level === 'full') {
+    t.push({type:'function', function:{name:'run_cmd', description:'执行命令行命令（有危险命令黑名单）',
+      parameters:{type:'object', properties:{cmd:{type:'string'}, timeout:{type:'number'}}, required:['cmd']}}});
+    t.push({type:'function', function:{name:'power', description:'关机/重启/锁屏/取消关机',
+      parameters:{type:'object', properties:{action:{type:'string', enum:['shutdown','restart','lock','cancel']}, delay:{type:'number', description:'多少秒后执行'}}, required:['action']}}});
+    t.push({type:'function', function:{name:'recycle', description:'删除文件到回收站（可恢复）',
+      parameters:{type:'object', properties:{path:{type:'string'}}, required:['path']}}});
+    t.push({type:'function', function:{name:'open_app', description:'打开一个软件或文件（仅完全权限）',
+      parameters:{type:'object', properties:{target:{type:'string', description:'程序名或完整路径'}}, required:['target']}}});
+    t.push({type:'function', function:{name:'run_python', description:'执行一段 Python 代码并返回运行结果（仅完全权限）',
+      parameters:{type:'object', properties:{code:{type:'string', description:'完整可运行的 Python 代码'}, timeout:{type:'number', description:'超时秒数，默认10'}}, required:['code']}}});
+  }
+  return t;
+}
+
+async function runTool(name, args, level){
+  const argStr = JSON.stringify(args).slice(0, 100);
+  trace('🔧 调用 ' + name + '  ' + argStr);
+  try{
+    const r = await fetch(TOOL_URL, { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({name:name, args:args, level:level, workspace: WS}) });
+    const j = await r.json();
+    if (j && j.error) trace('❌ ' + name + '：' + String(j.error).slice(0, 90), 'err');
+    else trace('✅ ' + name + '：' + brief(j, name), 'ok');
+    return j;
+  }catch(e){
+    trace('❌ ' + name + '：工具服务连不上', 'err');
+    return {error:'工具服务没开：' + e.message};
+  }
+}
+
+async function send(){
+  const text = q.value.trim();
+  if (!text) return;
+  const sendImg = pendingImg;              // 先记住图，后面 clearImg 会清掉
+  q.value='';
+  const meEl = bubble('me', text);
+  if (sendImg) {
+    const im = document.createElement('img');
+    im.src = sendImg;
+    im.style.cssText = 'max-width:260px;border-radius:8px;margin-top:8px;display:block;border:1px solid rgba(255,255,255,.25)';
+    meEl.appendChild(im);
+  }
+  history.push({role:'user', content:text});
+  if (history.length > 40) history = history.slice(-40);
+  persist();
+  running = true;
+  btn.textContent = '终止';
+  btn.style.background = '#b91c1c';
+  btn.disabled = false;
+  const ac = new AbortController();
+  currentAbort = ac;
+  const SIG = ac.signal;
+
+  clearImg();
+  const wrap = bubble('ai', '');
+  const det = document.createElement('details'); det.open = true;
+  const sum = document.createElement('summary'); sum.textContent='思考中…';
+  det.style.display = 'block';
+  const think = document.createElement('div'); think.className='think';
+  det.appendChild(sum); det.appendChild(think);
+  curTrace = think;
+  wrap.insertBefore(det, wrap.firstChild);
+  const ans = wrap.querySelector('.ans'); ans.textContent='…';
+
+  const level = levelSel.value;
+  THINK = resolveThink(text, !!sendImg);
+  /* 2B 掐掉思考会变复读机，强制至少"轻度" */
+  if (THINK === 0 && modelSel.value !== 'auto' && modelSel.value !== 'big' && modelSel.value !== 'vl') {
+    THINK = 1;
+  }
+  const want = await pickModel(!!sendImg, text);
+  sum.textContent = '准备模型…';
+  const pick = await ensureModel(want);
+  const BASE = pick.base;
+  const useTools = true;   // 所有模型都带工具定义（能否用好取决于模型）
+  /* 2B 靠思考才能答对，思考会吃掉大量 token，上限要给够 */
+  const TOK_LIMIT = pick.kind === 'small'
+    ? Math.min(Math.max(MAXTOK, 3072), 4096)
+    : MAXTOK;
+  if (pick.kind === 'small' && THINK === 0) {
+    THINK = 1;   // 2B 没有"不思考"档（界面上已隐藏），兜底防呆
+  }
+  if (pick.kind !== 'big') addSys('本次使用：' + (pick.kind === 'vl' ? '看图 7B' : '小模型 2B'));
+  const t0 = Date.now();
+  let firstToken = false;
+  let speedT0 = 0, speedChars = 0;
+  const timer = setInterval(() => {
+    if (!firstToken) sum.textContent = '思考中… ' + Math.floor((Date.now() - t0) / 1000) + 's';
+  }, 500);
+  /* 超长历史撑爆上下文会 500，同时防止内存一直涨 */
+  if (history.length > 24) {
+    const dropped = history.slice(0, history.length - 24);
+    history = history.slice(-24);
+    try {
+      const lines = dropped.map(m => (m.role === 'user' ? '我：' : '小千问：') + String(m.content).slice(0, 400));
+      fetch('http://127.0.0.1:8081/archive', { method:'POST',
+        headers:{'Content-Type':'application/json'}, body: JSON.stringify({ lines: lines }) }).catch(() => {});
+    } catch (e) {}
+  }
+  let _chars = 0; const _keep = [];
+  for (let i = history.length - 1; i >= 0; i--) {
+    const _c = typeof history[i].content === 'string' ? history[i].content : '';
+    if (_chars + _c.length > 9000) break;
+    _chars += _c.length; _keep.unshift(history[i]);
+  }
+  history = _keep;
+
+  /* 需要联网的问题：直接替它搜好，把结果塞进上下文。
+     不依赖模型自己决定要不要调用工具（9B 经常不用）。 */
+  let searchCtx = '';
+  if (/搜索|搜一下|搜下|查一下|查查|联网|最新消息|新闻|官网|多少钱|价格|汇率|股价/i.test(text)) {
+    sum.textContent = '联网搜索中…';
+    try {
+      const sr = await fetch(TOOLS_API + '/tool', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ name:'web_search', args:{ query: text }, level: level, workspace: WS })
+      });
+      const sj = await sr.json();
+      if (sj && sj.results && sj.results.length) {
+        searchCtx = sj.results.map((x, i) => (i+1) + '. ' + x.title + ' — ' + (x.snippet || '') + ' (' + x.url + ')').join('\n');
+        addSys('已联网搜索，拿到 ' + sj.results.length + ' 条结果');
+      }
+    } catch (e) { addSys('搜索失败：' + e.message); }
+  }
+
+  const msgs = [];
+  /* 所有系统内容合并成一条：2B 的模板不接受多条连续的 system 消息 */
+  const _now = new Date();
+  let _sys = MEM || '';
+  _sys += String.fromCharCode(10,10) + '【当前时间】' + _now.getFullYear() + '年' + (_now.getMonth()+1) + '月' +
+          _now.getDate() + '日 ' + _now.toLocaleTimeString('zh-CN', {hour12:false}) +
+          '（回答时间类问题时直接用这个，不要说无法访问时钟）';
+  if (searchCtx) {
+    _sys += String.fromCharCode(10,10) + '【以下是刚刚联网搜索到的真实结果，请基于它们回答，并在结尾注明来源】' +
+            String.fromCharCode(10) + searchCtx;
+  }
+  if (GEO) {
+    _sys += String.fromCharCode(10,10) + '【当前所在位置】' + (GEO.country || '') + ' ' +
+            (GEO.province || '') + (GEO.city || '') + '（用户在这里；问天气、本地信息时直接用，不要反问用户在哪个城市）';
+  }
+  if (SUMMARY) _sys += String.fromCharCode(10,10) + '【早前对话摘要】' + SUMMARY;
+  msgs.push({ role:'system', content: _sys });
+  /* 摘要已合并进上面的系统消息 */
+  history.forEach(m => msgs.push({role:m.role, content:m.content}));
+  /* 注意：不能加在末尾当 system 消息——2B 的模板会报
+     "System message must be at the beginning" 直接 500。
+     改成拼进最后一条用户消息里。 */
+  /* 不再往用户消息里拼提示，改用 chat_template_kwargs */
+  if (sendImg && msgs.length){
+    const lastM = msgs[msgs.length - 1];
+    if (lastM.role === 'user'){
+      lastM.content = [
+        { type: 'text', text: typeof lastM.content === 'string' ? lastM.content : '' },
+        { type: 'image_url', image_url: { url: sendImg } },
+      ];
+      addSys('已把图片附在这条消息里');
+    }
+  }
+
+  try{
+    // 第一轮：带工具，看它要不要动手
+    let data = await (await fetch(BASE + '/v1/chat/completions', {method:'POST', signal: SIG,
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({messages:msgs, tools: useTools ? toolDefs(level) : undefined,
+                            tool_choice: !useTools ? 'none'
+                              : (/搜索|搜一下|查一下|查查|联网|最新|新闻|今天|现在|多少钱|价格|天气|是谁|官网|链接/i.test(text) ? 'required' : 'auto'),
+                            max_tokens:600, temperature:0, stream:false})})).json();
+
+    // 有些模板会把工具调用当文本吐出来（<tool_call>{...}</tool_call>），这里兜底解析
+    function parseInline(text){
+      if (!text) return null;
+      var mj = text.match(/<tool_call>\s*(\{[\s\S]*?\})\s*<\/tool_call>/);
+      if (!mj) mj = text.match(/(\{"name"\s*:\s*"[^"]+"\s*,\s*"arguments"[\s\S]*?\})/);
+      if (mj) {
+        try {
+          var j = JSON.parse(mj[1]);
+          if (j && j.name) return { name: j.name, args: j.arguments || j.args || {} };
+        } catch (e) {}
+      }
+      var mf = text.match(/<function\s*=\s*([A-Za-z0-9_]+)\s*>([\s\S]*?)<\/function>/);
+      if (mf) {
+        var name = mf[1];
+        var body = mf[2];
+        var args = {};
+        var re = /<parameter\s*=\s*([A-Za-z0-9_]+)\s*>([\s\S]*?)<\/parameter>/g;
+        var mm;
+        while ((mm = re.exec(body)) !== null) { args[mm[1]] = mm[2].trim(); }
+        return { name: name, args: args };
+      }
+      return null;
+    }
+
+    let rounds = 0;
+    while (rounds < MAXROUNDS){
+      const m0 = (data.choices && data.choices[0] && data.choices[0].message) || {};
+      let calls = m0.tool_calls || [];
+      if (!calls.length){
+        const inl = parseInline(m0.content);
+        if (inl) calls = [{ id: 'inline' + rounds, type: 'function',
+                            function: { name: inl.name, arguments: JSON.stringify(inl.args) } }];
+      }
+      if (!calls.length) break;
+      rounds++;
+      msgs.push({role:'assistant', content: m0.content || '', tool_calls: calls});
+      for (const tc of calls){
+        let args = {};
+        try { args = JSON.parse(tc.function.arguments || '{}'); } catch(e){}
+        const result = await runTool(tc.function.name, args, level);
+        msgs.push({role:'tool', tool_call_id: tc.id, content: JSON.stringify(result).slice(0, 4000)});
+      }
+      data = await (await fetch(BASE + '/v1/chat/completions', {method:'POST', signal: SIG,
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({messages:msgs, tools: toolDefs(level), tool_choice:'auto',
+                              max_tokens:600, temperature:0, stream:false})})).json();
+    }
+
+    // 最终轮：流式输出（思考开关由 chat_template_kwargs 控制）
+    const finalMsgs = msgs.map(m => Object.assign({}, m));
+    const tail = finalMsgs[finalMsgs.length - 1];
+    if (tail && tail.role === 'user') {
+      if (THINK >= 2) { /* 标准/深度：开启思考 */ }
+      else if (Array.isArray(tail.content)) {
+        // 带图片时 content 是数组，不能直接拼字符串，否则图片会丢
+        const t = tail.content.find(x => x && x.type === 'text');
+        /* 用 enable_thinking 控制，不污染文本 */
+      } else {
+        /* 同上 */
+      }
+    } else {
+      // 最后一条是工具结果时，补一句让模型直接作答
+      finalMsgs.push({ role: 'user', content: '请根据上面的工具结果直接回答，不要重复分析。' });
+    }
+    if (THINK >= 2) {
+      finalMsgs.forEach(m => {
+        if (typeof m.content === 'string') m.content = m.content.replace(/ \/no_think/g, '');
+      });
+    }
+    const res = await fetch(BASE + '/v1/chat/completions', {method:'POST', signal: SIG,
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({messages:finalMsgs,
+                            max_tokens: (THINK === 0 ? Math.min(TOK_LIMIT, 800) : TOK_LIMIT),
+                            temperature: (pick.kind === 'small' ? 0.5 : (THINK >= 3 ? 0.9 : 0.7)),
+                            chat_template_kwargs: { enable_thinking: THINK >= 2 },
+                            repeat_penalty: 1.18,
+                            frequency_penalty: 0.25,
+                            presence_penalty: 0.15,
+                            stop: ['</s>', '<|im_end|>'],
+                            stream:true})});
+    if (!res.ok) {
+      const errText = await res.text();
+      ans.textContent = '请求失败（' + res.status + '）：' + errText.slice(0, 400);
+      if (res.status === 500) { history = history.slice(-4); persist(); }
+      throw new Error('http ' + res.status);
+    }
+    const reader = res.body.getReader(); const dec = new TextDecoder();
+    let buf='', thinkText='', ansText='';
+    while(true){
+      const {done, value} = await reader.read(); if (done) break;
+      buf += dec.decode(value, {stream:true});
+      let idx;
+      while((idx = buf.indexOf(String.fromCharCode(10))) >= 0){
+        const line = buf.slice(0, idx).trim(); buf = buf.slice(idx+1);
+        if (!line.startsWith('data:')) continue;
+        const p = line.slice(5).trim(); if (!p || p === '[DONE]') continue;
+        try{
+          const j = JSON.parse(p);
+          const d = (j.choices && j.choices[0] && j.choices[0].delta) || {};
+          if (d.reasoning_content){
+            if (!firstToken){ firstToken = true; clearInterval(timer); sum.textContent = '思考中…'; }
+            thinkText += d.reasoning_content; think.textContent = thinkText; think.scrollTop = think.scrollHeight;
+          }
+          if (d.content){
+            if (speedT0 === 0) speedT0 = Date.now();
+            speedChars += d.content.length;
+            /* 不再自动折叠：思考过程一直显示 */
+            ansText += d.content; ans.textContent = ansText;
+          }
+          log.scrollTop = log.scrollHeight;
+        }catch(e){}
+      }
+    }
+    // 如果最终回答里还夹着工具调用（模型爱在正文里发 <tool_call>），
+    // 就执行一次再让它重答，而不是把 XML 原样显示给用户。
+    var leftover = parseInline(ansText);
+    if (leftover) {
+      addSys('模型要求再执行一次：' + leftover.name);
+      var r2 = await runTool(leftover.name, leftover.args, level);
+      msgs.push({ role: 'assistant', content: ansText });
+      msgs.push({ role: 'user', content: '【工具执行结果】' + JSON.stringify(r2).slice(0, 3000) +
+        String.fromCharCode(10) + '请直接根据上面的结果回答用户，不要再输出工具调用。' });
+      try {
+        var res2 = await fetch(BASE + '/v1/chat/completions', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ messages: msgs, tools: toolDefs(level), tool_choice: 'none',
+                                 max_tokens: Math.min(MAXTOK, 1200), temperature: 0.7, stream: false })
+        });
+        var d2 = await res2.json();
+        var c2 = (d2.choices && d2.choices[0] && d2.choices[0].message && d2.choices[0].message.content) || '';
+        if (c2 && !parseInline(c2)) { ansText = c2; ans.textContent = c2; }
+      } catch (e) {}
+    }
+
+    if (!ansText) ans.textContent = '（没有正文输出）';
+    history.push({role:'assistant', content: ansText || thinkText.slice(0,300)}); persist();
+  }catch(e){
+    if (e && e.name === 'AbortError') {
+      ans.textContent = (ans.textContent && ans.textContent !== '…' ? ans.textContent + '\n\n' : '') + '（已终止）';
+    } else {
+      ans.textContent = '请求失败：' + e.message;
+    }
+  }
+  finally{
+    clearInterval(timer); firstToken = true;
+    if (!running) {} // noop
+    if (speedT0 && speedChars > 0) {
+      const secs = Math.max(0.1, (Date.now() - speedT0) / 1000);
+      const tps = Math.round((speedChars / 1.6) / secs);
+      sum.textContent = '思考过程（点开）· 约 ' + tps + ' tok/s';
+    }
+    running = false; currentAbort = null;
+    btn.textContent = '发送';
+    btn.style.background = '';
+    btn.disabled = false;
+    log.scrollTop = log.scrollHeight;
+    q.focus();
+  }
+  compress();
+}
+
+async function compress(){
+  if (history.length < 14) return;
+  const cut = history.length - 8;
+  const flat = history.slice(0, cut).map(m => (m.role==='user'?'用户：':'AI：') + m.content).join('  ');
+  try{
+    const j = await (await fetch('/v1/chat/completions', {method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({messages:[{role:'system',content:MEM},
+        {role:'user', content:(SUMMARY?'已有摘要：'+SUMMARY+'  ':'')+'把下面这段对话压成不超过 300 字的中文摘要，保留人物、事实、结论、待办：'+flat+' /no_think'}],
+        max_tokens:600, temperature:0.2, stream:false})})).json();
+    const s = ((j.choices&&j.choices[0]&&j.choices[0].message&&j.choices[0].message.content)||'').trim();
+    if (s){ SUMMARY=s; history=history.slice(cut); /* 摘要也只存 E 盘 */ persist(); addSys('已把 '+cut+' 条旧对话压缩成摘要'); }
+  }catch(e){}
+}
+
+/* ---------- 图片 ---------- */
+let pendingImg = null;
+let running = false, currentAbort = null;
+function stopGeneration(){
+  if (currentAbort) { try { currentAbort.abort(); } catch(e){} }
+}
+const fileEl = document.createElement('input');
+fileEl.type = 'file';
+fileEl.accept = 'image/*';
+fileEl.style.display = 'none';
+document.body.appendChild(fileEl);
+
+/* 图片先压缩：长边 ≤ 1024，转 JPEG。大幅减少视觉 token，看得更快。 */
+function shrinkImage(dataUrl, maxSide){
+  maxSide = maxSide || 640;   // 越小越快：640≈25秒，1024≈70秒
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+        const w = Math.max(1, Math.round(img.width * scale));
+        const h = Math.max(1, Math.round(img.height * scale));
+        const cv = document.createElement('canvas');
+        cv.width = w; cv.height = h;
+        cv.getContext('2d').drawImage(img, 0, 0, w, h);
+        resolve({ url: cv.toDataURL('image/jpeg', 0.85), w: w, h: h, from: img.width + 'x' + img.height });
+      } catch (e) {
+        resolve({ url: dataUrl, w: img.width, h: img.height, from: '原图' });
+      }
+    };
+    img.onerror = () => resolve({ url: dataUrl, w: 0, h: 0, from: '原图' });
+    img.src = dataUrl;
+  });
+}
+
+async function setImg(dataUrl){
+  const r = await shrinkImage(dataUrl);
+  pendingImg = r.url;
+  document.getElementById('thumb').src = r.url;
+  document.getElementById('preview').style.display = 'block';
+  if (r.from !== '原图') addSys('图片已压缩：' + r.from + ' → ' + r.w + 'x' + r.h);
+  addSys('后台加载看图模型…（可先打字，加载完直接发）');
+  fetch('http://127.0.0.1:8081/ensure?kind=vl')
+    .then(() => addSys('看图模型已就绪'))
+    .catch(() => {});
+}
+function clearImg(){
+  pendingImg = null;
+  document.getElementById('preview').style.display = 'none';
+}
+document.getElementById('rmimg').onclick = clearImg;
+document.getElementById('attach').onclick = () => fileEl.click();
+fileEl.onchange = () => {
+  const f = fileEl.files && fileEl.files[0];
+  if (!f) return;
+  const r = new FileReader();
+  r.onload = () => setImg(r.result);
+  r.readAsDataURL(f);
+  fileEl.value = '';
+};
+document.getElementById('shot').onclick = async () => {
+  addSys('正在截屏…');
+  try{
+    const r = await fetch('http://127.0.0.1:8081/screenshot');
+    const j = await r.json();
+    if (j.data) {
+      setImg('data:image/png;base64,' + j.data);
+      addSys('已截取并保存：' + (j.path || '（路径未知）'));
+    }
+    else addSys('截屏失败：' + (j.error || '未知'));
+  }catch(e){ addSys('截屏失败：' + e.message); }
+};
+
+btn.onclick = () => { if (running) { stopGeneration(); } else { send(); } };
+q.addEventListener('keydown', e => { if (e.key==='Enter' && !e.shiftKey){ e.preventDefault(); send(); } });
+q.focus();
+</script>
+</body>
+</html>

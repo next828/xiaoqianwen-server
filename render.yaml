@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: xiaoqianwen
+    runtime: python
+    plan: free
+    region: singapore
+    buildCommand: "echo no build"
+    startCommand: "python keyserver.py"
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.9"
+      - key: PORT
+        value: "10000"

@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="peel" x1="20%" y1="10%" x2="80%" y2="92%">
+      <stop offset="0%" stop-color="#FFF9B0"/>
+      <stop offset="30%" stop-color="#FFE95C"/>
+      <stop offset="68%" stop-color="#F7C81E"/>
+      <stop offset="100%" stop-color="#DDA208"/>
+    </linearGradient>
+    <radialGradient id="hi" cx="34%" cy="26%" r="42%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.95"/>
+      <stop offset="70%" stop-color="#FFFFFF" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="leaf" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#9BEA77"/>
+      <stop offset="55%" stop-color="#4CC167"/>
+      <stop offset="100%" stop-color="#238C43"/>
+    </linearGradient>
+    <filter id="sh" x="-25%" y="-25%" width="150%" height="150%">
+      <feDropShadow dx="0" dy="14" stdDeviation="14" flood-color="#8A5B00" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+
+  <g filter="url(#sh)">
+    <!-- 柠檬主体：两端带小凸起 -->
+    <path d="M150 150
+             C 196 106, 316 106, 362 150
+             C 400 186, 400 326, 362 362
+             C 316 406, 196 406, 150 362
+             C 112 326, 112 186, 150 150 Z"
+          fill="url(#peel)"/>
+    <path d="M150 150 C 152 132, 168 122, 190 126 C 172 138, 158 146, 150 150 Z" fill="#E9B70C"/>
+    <path d="M362 362 C 360 380, 344 390, 322 386 C 340 374, 354 366, 362 362 Z" fill="#C88F05"/>
+    <!-- 高光 -->
+    <ellipse cx="206" cy="196" rx="74" ry="52" transform="rotate(-26 206 196)" fill="url(#hi)"/>
+    <!-- 底部阴影 -->
+    <path d="M188 372 C 236 396, 300 392, 342 366 C 320 396, 246 408, 188 372 Z"
+          fill="#C08405" opacity="0.35"/>
+    <!-- 柠檬纹理小点 -->
+    <g fill="#C98F06" opacity="0.16">
+      <circle cx="196" cy="288" r="5"/><circle cx="230" cy="316" r="4"/>
+      <circle cx="286" cy="322" r="5"/><circle cx="316" cy="280" r="4"/>
+      <circle cx="262" cy="350" r="4"/><circle cx="212" cy="344" r="3"/>
+    </g>
+  </g>
+
+  <!-- 叶子 -->
+  <g transform="translate(262 140) rotate(22)">
+    <path d="M0 0 C 14 -40, 66 -58, 104 -38 C 80 4, 34 18, 0 0 Z" fill="url(#leaf)"/>
+    <path d="M0 0 C 14 -40, 66 -58, 104 -38" fill="none" stroke="#1B7F39" stroke-opacity="0.5"
+          stroke-width="4" stroke-linecap="round"/>
+    <path d="M4 -8 C 26 -34, 62 -46, 92 -36" fill="none" stroke="#F2FFF2" stroke-opacity="0.55"
+          stroke-width="3" stroke-linecap="round"/>
+  </g>
+  <!-- 果柄 -->
+  <path d="M258 132 q 6 -18 20 -26" fill="none" stroke="#7A5200" stroke-opacity="0.5"
+        stroke-width="7" stroke-linecap="round"/>
+</svg>

@@ -1,0 +1,11 @@
+{
+  "_说明": "配置好这个文件并改名为 mail.json 就能发真邮件；不配就是测试模式（验证码直接显示在页面上）",
+  "_QQ邮箱": "host:smtp.qq.com port:465 ssl:true user:你的QQ邮箱 pass:授权码（不是登录密码）",
+  "_163邮箱": "host:smtp.163.com port:465 ssl:true",
+  "_Gmail": "host:smtp.gmail.com port:587 ssl:false user:你的@gmail.com pass:应用专用密码",
+  "host": "",
+  "port": 465,
+  "ssl": true,
+  "user": "",
+  "pass": ""
+}

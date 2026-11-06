@@ -1,0 +1,71 @@
+小千问 · 服务器部署包
+========================
+
+一、这个包里有什么
+------------------
+  小鲸鱼AI/          服务端 + 网页客户端（完整）
+  启动服务.bat       Windows 一键启动
+  start.sh           Linux 一键启动
+  keepalive.py       守护进程（崩了自动重启 + 防休眠）
+  说明.txt           你正在看的这个
+
+二、部署（Windows 服务器）
+--------------------------
+  1. 装 Python 3.10+：https://www.python.org/downloads/
+     安装时勾选 "Add Python to PATH"
+  2. 把整个文件夹解压到任意目录（比如 D:\xqw）
+  3. 双击 启动服务.bat
+  4. 浏览器打开 http://服务器IP:8090
+
+三、部署（Linux 服务器）
+------------------------
+  apt install python3 -y          # 大部分系统自带
+  cd /root/xqw
+  chmod +x start.sh
+  ./start.sh
+
+  想看后台运行：
+  nohup ./start.sh > run.log 2>&1 &
+
+四、开放端口
+------------
+  云服务器要在「安全组」里放行 8090 端口（TCP）。
+  否则本机能开，外面连不上。
+
+五、防休眠（可选）
+------------------
+  如果是免费平台会睡眠，加一个环境变量：
+
+  Linux:   export PING_URL=https://你的地址
+  Windows: set PING_URL=https://你的地址
+
+  守护进程会每 10 分钟访问一次，防止被判定空闲。
+
+六、开机自启（Windows）
+-----------------------
+  按 Win+R 输入 shell:startup
+  把 启动服务.bat 的快捷方式放进去
+
+七、开机自启（Linux）
+---------------------
+  crontab -e
+  @reboot /root/xqw/start.sh
+
+八、数据在哪
+------------
+  账号：小鲸鱼AI\ai-web\users.json
+  帖子：小鲸鱼AI\ai-web\posts.json
+  兑换码：小鲸鱼AI\ai-web\codes.json
+  图片视频：小鲸鱼AI\社区\uploads\
+
+  备份就复制这几个文件/文件夹。
+
+九、配置邮箱（可选）
+--------------------
+  复制 小鲸鱼AI\ai-web\mail.example.json 为 mail.json
+  填 host/port/user/pass（QQ 邮箱用授权码）
+
+十、默认管理密码
+----------------
+  首次启动自动生成，在 小鲸鱼AI\ai-web\keys.json 的 admin 字段。
+  地址：http://你的IP:8090/admin?pw=管理密码

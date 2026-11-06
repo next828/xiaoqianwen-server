@@ -1,0 +1,31 @@
+{
+  "custom_deepseek_moe_24b": {
+    "path": "F:/AI模型/DeepSeek-MOE-24B-Q2/DS4X8R1L3.1-Dp-Thnkr-UnC-24B-D_AU-Q2_k.gguf",
+    "mmproj": null,
+    "ctx": 4096,
+    "port": 8080,
+    "title": "DeepSeek-MoE-24B",
+    "ngl": 99,
+    "kv": "q8_0",
+    "extra": [
+      "--n-cpu-moe",
+      "8"
+    ]
+  },
+  "custom_qwen35_9b_official": {
+    "path": "F:/AI模型/Qwen3.5-9B-Official/Qwen3.5-9B-Q4_K_M.gguf",
+    "mmproj": null,
+    "ctx": 16384,
+    "port": 8080,
+    "title": "Qwen3.5-9B 官方",
+    "kv": "f16"
+  },
+  "custom_f_ai_deepseek_cod": {
+    "path": "F:\\AI模型\\DeepSeek-Coder-V2\\DeepSeek-Coder-V2-Lite-Instruct-Q4_K_M.gguf",
+    "mmproj": null,
+    "ctx": 8192,
+    "port": 8080,
+    "title": "F:\\AI模型\\DeepSeek-Cod"
+  },
+  "resident_default": true
+}
